@@ -102,3 +102,7 @@ ProblemFilters.exclude[MissingClassProblem]("akka.stream.actor.AbstractActorPubl
 ProblemFilters.exclude[MissingClassProblem]("akka.stream.impl.SinkQueueAdapter")
 ProblemFilters.exclude[MissingClassProblem]("akka.stream.impl.SourceQueueAdapter")
 
+# #26910 scheduleWithFixedDelay vs scheduleAtFixedRate
+# Adding methods to Materializer is not compatible but we don't support other Materializer implementations
+ProblemFilters.exclude[ReversedMissingMethodProblem]("akka.stream.Materializer.scheduleAtFixedRate")
+ProblemFilters.exclude[ReversedMissingMethodProblem]("akka.stream.Materializer.scheduleWithFixedDelay")
