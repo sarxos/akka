@@ -37,9 +37,8 @@ object TimerSpec {
       with Timers {
     private var bumpCount = initial()
 
-    // FIXME test startTimerWithFixedDelay and startTimerAtFixedRate
     if (repeat)
-      timers.startPeriodicTimer("T", Tick(bumpCount), interval)
+      timers.startTimerWithFixedDelay("T", Tick(bumpCount), interval)
     else
       timers.startSingleTimer("T", Tick(bumpCount), interval)
 
@@ -54,7 +53,7 @@ object TimerSpec {
 
     def bump(): Unit = {
       bumpCount += 1
-      timers.startPeriodicTimer("T", Tick(bumpCount), interval)
+      timers.startTimerWithFixedDelay("T", Tick(bumpCount), interval)
     }
 
     def autoReceive(): Unit = {
