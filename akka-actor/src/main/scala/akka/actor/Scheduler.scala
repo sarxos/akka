@@ -205,7 +205,7 @@ trait Scheduler {
    *
    * Note: For scheduling within actors `with Timers` should be preferred.
    */
-  def scheduleAtFixedRate(initialDelay: FiniteDuration, interval: FiniteDuration, runnable: Runnable)(
+  final def scheduleAtFixedRate(initialDelay: FiniteDuration, interval: FiniteDuration, runnable: Runnable)(
       implicit executor: ExecutionContext): Cancellable =
     schedule(initialDelay, interval, runnable)(executor)
 
