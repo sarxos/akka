@@ -4,7 +4,7 @@
 
 package akka.actor
 
-import akka.util.JavaDurationConverters
+import akka.util.JavaDurationConverters._
 import scala.concurrent.duration.FiniteDuration
 
 /**
@@ -113,7 +113,6 @@ abstract class AbstractFSM[S, D] extends FSM[S, D] {
       stateName: S,
       stateTimeout: java.time.Duration,
       stateFunctionBuilder: FSMStateFunctionBuilder[S, D]): Unit = {
-    import JavaDurationConverters._
     when(stateName, stateTimeout.asScala, stateFunctionBuilder)
   }
 
@@ -150,7 +149,6 @@ abstract class AbstractFSM[S, D] extends FSM[S, D] {
    * @param timeout state timeout for the initial state, overriding the default timeout for that state
    */
   final def startWith(stateName: S, stateData: D, timeout: java.time.Duration): Unit = {
-    import JavaDurationConverters._
     startWith(stateName, stateData, timeout.asScala)
   }
 
@@ -435,6 +433,42 @@ abstract class AbstractFSM[S, D] extends FSM[S, D] {
   final def goTo(nextStateName: S): State = goto(nextStateName)
 
   /**
+   * Start a periodic timer that will send `msg` to the `self` actor at
+   * a fixed `delay`.
+   *
+   * Each timer has a `name` and if a new timer with same `name` is started
+   * the previous is cancelled and it's guaranteed that a message from the
+   * previous timer is not received, even though it might already be enqueued
+   * in the mailbox when the new timer is started.
+   */
+  def startTimerWithFixedDelay(name: String, msg: Any, delay: java.time.Duration): Unit =
+    startTimerWithFixedDelay(name, msg, delay.asScala)
+
+  /**
+   * Start a periodic timer that will send `msg` to the `self` actor at
+   * a fixed `interval`.
+   *
+   * Each timer has a `name` and if a new timer with same `name` is started
+   * the previous is cancelled and it's guaranteed that a message from the
+   * previous timer is not received, even though it might already be enqueued
+   * in the mailbox when the new timer is started.
+   */
+  def startTimerAtFixedRate(name: String, msg: Any, interval: java.time.Duration): Unit =
+    startTimerAtFixedRate(name, msg, interval.asScala)
+
+  /**
+   * Start a timer that will send `msg` once to the `self` actor after
+   * the given `delay`.
+   *
+   * Each timer has a `name` and if a new timer with same `name` is started
+   * the previous is cancelled and it's guaranteed that a message from the
+   * previous timer is not received, even though it might already be enqueued
+   * in the mailbox when the new timer is started.
+   */
+  def startSingleTimer(name: String, msg: Any, delay: java.time.Duration): Unit =
+    startSingleTimer(name, msg, delay.asScala)
+
+  /**
    * Schedule named timer to deliver message after given delay, possibly repeating.
    * Any existing timer with the same name will automatically be canceled before
    * adding the new timer.
@@ -442,6 +476,7 @@ abstract class AbstractFSM[S, D] extends FSM[S, D] {
    * @param msg message to be delivered
    * @param timeout delay of first message delivery and between subsequent messages
    */
+  // FIXME deprecate
   final def setTimer(name: String, msg: Any, timeout: FiniteDuration): Unit =
     setTimer(name, msg, timeout, repeat = false)
 
@@ -453,8 +488,8 @@ abstract class AbstractFSM[S, D] extends FSM[S, D] {
    * @param msg message to be delivered
    * @param timeout delay of first message delivery and between subsequent messages
    */
+  // FIXME deprecate
   final def setTimer(name: String, msg: Any, timeout: java.time.Duration): Unit = {
-    import JavaDurationConverters._
     setTimer(name, msg, timeout.asScala, false)
   }
 
@@ -467,8 +502,8 @@ abstract class AbstractFSM[S, D] extends FSM[S, D] {
    * @param timeout delay of first message delivery and between subsequent messages
    * @param repeat send once if false, scheduleAtFixedRate if true
    */
+  // FIXME deprecate
   final def setTimer(name: String, msg: Any, timeout: java.time.Duration, repeat: Boolean): Unit = {
-    import JavaDurationConverters._
     setTimer(name, msg, timeout.asScala, repeat)
   }
 

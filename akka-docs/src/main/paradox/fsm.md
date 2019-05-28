@@ -447,7 +447,8 @@ Besides state timeouts, FSM manages timers identified by `String` names.
 You may set a timer using
 
 ```
-setTimer(name, msg, interval, repeat)
+startSingleTimer(name, msg, interval)
+startTimerWithFixedDelay(name, msg, interval)
 ```
 
 where `msg` is the message object which will be sent after the duration

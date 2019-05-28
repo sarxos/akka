@@ -104,19 +104,28 @@ object TimerSpec {
     }
 
     def bump(bumpCount: Int): State = {
-      setTimer("T", Tick(bumpCount + 1), interval, repeat)
+      if (repeat)
+        startTimerWithFixedDelay("T", Tick(bumpCount + 1), interval)
+      else
+        startSingleTimer("T", Tick(bumpCount + 1), interval)
       stay.using(bumpCount + 1)
     }
 
     def autoReceive(): State = {
-      setTimer("A", PoisonPill, interval, repeat)
+      if (repeat)
+        startTimerWithFixedDelay("A", PoisonPill, interval)
+      else
+        startSingleTimer("A", PoisonPill, interval)
       stay
     }
 
     {
       val i = initial()
       startWith(TheState, i)
-      setTimer("T", Tick(i), interval, repeat)
+      if (repeat)
+        startTimerWithFixedDelay("T", Tick(i), interval)
+      else
+        startSingleTimer("T", Tick(i), interval)
     }
 
     when(TheState) {

@@ -6,12 +6,12 @@ package akka.persistence.fsm
 
 import akka.actor._
 import akka.japi.pf.{ FSMTransitionHandlerBuilder, UnitMatch, UnitPFBuilder }
-
 import language.implicitConversions
 import scala.collection.mutable
+
 import akka.routing.{ Deafen, Listen, Listeners }
 import akka.util.unused
-
+import akka.util.JavaDurationConverters._
 import scala.concurrent.duration.FiniteDuration
 
 /**
@@ -88,8 +88,8 @@ import scala.concurrent.duration.FiniteDuration
  * repeated timers which arrange for the sending of a user-specified message:
  *
  * <pre>
- *   setTimer("tock", TockMsg, 1 second, true) // repeating
- *   setTimer("lifetime", TerminateMsg, 1 hour, false) // single-shot
+ *   startTimerWithFixedDelay("tock", TockMsg, 1 second) // repeating
+ *   startSingleTimer("lifetime", TerminateMsg, 1 hour) // single-shot
  *   cancelTimer("tock")
  *   isTimerActive("tock")
  * </pre>
@@ -201,6 +201,42 @@ trait PersistentFSMBase[S, D, E] extends Actor with Listeners with ActorLogging 
   final def transform(func: StateFunction): TransformHelper = new TransformHelper(func)
 
   /**
+   * Start a periodic timer that will send `msg` to the `self` actor at
+   * a fixed `delay`.
+   *
+   * Each timer has a `name` and if a new timer with same `name` is started
+   * the previous is cancelled and it's guaranteed that a message from the
+   * previous timer is not received, even though it might already be enqueued
+   * in the mailbox when the new timer is started.
+   */
+  def startTimerWithFixedDelay(name: String, msg: Any, delay: FiniteDuration): Unit =
+    startTimer(name, msg, delay, FixedDelayMode)
+
+  /**
+   * Start a periodic timer that will send `msg` to the `self` actor at
+   * a fixed `interval`.
+   *
+   * Each timer has a `name` and if a new timer with same `name` is started
+   * the previous is cancelled and it's guaranteed that a message from the
+   * previous timer is not received, even though it might already be enqueued
+   * in the mailbox when the new timer is started.
+   */
+  def startTimerAtFixedRate(name: String, msg: Any, interval: FiniteDuration): Unit =
+    startTimer(name, msg, interval, FixedRateMode)
+
+  /**
+   * Start a timer that will send `msg` once to the `self` actor after
+   * the given `delay`.
+   *
+   * Each timer has a `name` and if a new timer with same `name` is started
+   * the previous is cancelled and it's guaranteed that a message from the
+   * previous timer is not received, even though it might already be enqueued
+   * in the mailbox when the new timer is started.
+   */
+  def startSingleTimer(name: String, msg: Any, delay: FiniteDuration): Unit =
+    startTimer(name, msg, delay, SingleMode)
+
+  /**
    * Schedule named timer to deliver message after given delay, possibly repeating.
    * Any existing timer with the same name will automatically be canceled before
    * adding the new timer.
@@ -209,13 +245,20 @@ trait PersistentFSMBase[S, D, E] extends Actor with Listeners with ActorLogging 
    * @param timeout delay of first message delivery and between subsequent messages
    * @param repeat send once if false, scheduleAtFixedRate if true
    */
+  // FIXME deprecate
   final def setTimer(name: String, msg: Any, timeout: FiniteDuration, repeat: Boolean = false): Unit = {
+    // repeat => FixedRateMode for compatibility
+    val mode = if (repeat) FixedRateMode else SingleMode
+    startTimer(name, msg, timeout, mode)
+  }
+
+  private def startTimer(name: String, msg: Any, timeout: FiniteDuration, mode: TimerMode): Unit = {
     if (debugEvent)
-      log.debug("setting " + (if (repeat) "repeating " else "") + "timer '" + name + "'/" + timeout + ": " + msg)
+      log.debug("setting " + (if (mode.repeat) "repeating " else "") + "timer '" + name + "'/" + timeout + ": " + msg)
     if (timers contains name) {
       timers(name).cancel
     }
-    val timer = Timer(name, msg, repeat, timerGen.next, this)(context)
+    val timer = Timer(name, msg, mode, timerGen.next, this)(context)
     timer.schedule(self, timeout)
     timers(name) = timer
   }
@@ -416,14 +459,14 @@ trait PersistentFSMBase[S, D, E] extends Actor with Listeners with ActorLogging 
       if (generation == gen) {
         processMsg(StateTimeout, "state timeout")
       }
-    case t @ Timer(name, msg, repeat, gen, owner) =>
+    case t @ Timer(name, msg, mode, gen, owner) =>
       if ((owner eq this) && (timers contains name) && (timers(name).generation == gen)) {
         if (timeoutFuture.isDefined) {
           timeoutFuture.get.cancel()
           timeoutFuture = None
         }
         generation += 1
-        if (!repeat) {
+        if (!mode.repeat) {
           timers -= name
         }
         processMsg(msg, t)
@@ -1019,6 +1062,42 @@ abstract class AbstractPersistentFSMBase[S, D, E] extends PersistentFSMBase[S, D
   final def goTo(nextStateName: S): State = goto(nextStateName)
 
   /**
+   * Start a periodic timer that will send `msg` to the `self` actor at
+   * a fixed `delay`.
+   *
+   * Each timer has a `name` and if a new timer with same `name` is started
+   * the previous is cancelled and it's guaranteed that a message from the
+   * previous timer is not received, even though it might already be enqueued
+   * in the mailbox when the new timer is started.
+   */
+  def startTimerWithFixedDelay(name: String, msg: Any, delay: java.time.Duration): Unit =
+    startTimerWithFixedDelay(name, msg, delay.asScala)
+
+  /**
+   * Start a periodic timer that will send `msg` to the `self` actor at
+   * a fixed `interval`.
+   *
+   * Each timer has a `name` and if a new timer with same `name` is started
+   * the previous is cancelled and it's guaranteed that a message from the
+   * previous timer is not received, even though it might already be enqueued
+   * in the mailbox when the new timer is started.
+   */
+  def startTimerAtFixedRate(name: String, msg: Any, interval: java.time.Duration): Unit =
+    startTimerAtFixedRate(name, msg, interval.asScala)
+
+  /**
+   * Start a timer that will send `msg` once to the `self` actor after
+   * the given `delay`.
+   *
+   * Each timer has a `name` and if a new timer with same `name` is started
+   * the previous is cancelled and it's guaranteed that a message from the
+   * previous timer is not received, even though it might already be enqueued
+   * in the mailbox when the new timer is started.
+   */
+  def startSingleTimer(name: String, msg: Any, delay: java.time.Duration): Unit =
+    startSingleTimer(name, msg, delay.asScala)
+
+  /**
    * Schedule named timer to deliver message after given delay, possibly repeating.
    * Any existing timer with the same name will automatically be canceled before
    * adding the new timer.
@@ -1026,6 +1105,7 @@ abstract class AbstractPersistentFSMBase[S, D, E] extends PersistentFSMBase[S, D
    * @param msg message to be delivered
    * @param timeout delay of first message delivery and between subsequent messages
    */
+  // FIXME deprecate
   final def setTimer(name: String, msg: Any, timeout: FiniteDuration): Unit =
     setTimer(name, msg, timeout, false)
 
