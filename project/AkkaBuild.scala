@@ -24,33 +24,13 @@ object AkkaBuild {
 
   lazy val buildSettings = Def.settings(
     organization := "com.typesafe.akka",
-    Dependencies.Versions,
-    // use the same value as in the build scope
-    version := (version in ThisBuild).value)
-
-  lazy val currentDateTime = {
-    // storing the first accessed timestamp in system property so that it will be the
-    // same when build is reloaded or when using `+`.
-    // `+` actually doesn't re-initialize this part of the build but that may change in the future.
-    sys.props.getOrElseUpdate("akka.build.timestamp",
-      DateTimeFormatter
-        .ofPattern("yyyyMMdd-HHmmss")
-        .format(ZonedDateTime.now(ZoneOffset.UTC)))
-  }
-
-  def akkaVersion: String = {
-    sys.props.getOrElse("akka.build.version", "2.6-SNAPSHOT") match {
-      case "timestamp" => s"2.6-$currentDateTime" // used when publishing timestamped snapshots
-      case v => v
-    }
-  }
+    Dependencies.Versions)
 
   lazy val rootSettings = Def.settings(
     Release.settings,
     UnidocRoot.akkaSettings,
     Protobuf.settings,
     parallelExecution in GlobalScope := System.getProperty("akka.parallelExecution", parallelExecutionByDefault.toString).toBoolean,
-      version in ThisBuild := akkaVersion
   )
 
   lazy val mayChangeSettings = Seq(
