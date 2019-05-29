@@ -5,8 +5,6 @@
 package jdocs.actor;
 
 // #imports1
-import akka.actor.Props;
-import jdocs.AbstractJavaTest;
 import java.time.Duration;
 // #imports1
 
@@ -14,6 +12,8 @@ import java.time.Duration;
 import akka.actor.Cancellable;
 // #imports2
 
+import jdocs.AbstractJavaTest;
+import akka.actor.Props;
 import akka.actor.AbstractActor;
 import akka.actor.ActorRef;
 import akka.actor.ActorSystem;
@@ -35,7 +35,8 @@ public class SchedulerDocTest extends AbstractJavaTest {
     // #schedule-one-off-message
     system
         .scheduler()
-        .scheduleOnce(Duration.ofMillis(50), testActor, "foo", system.dispatcher(), null);
+        .scheduleOnce(
+            Duration.ofMillis(50), testActor, "foo", system.dispatcher(), ActorRef.noSender());
     // #schedule-one-off-message
 
     // #schedule-one-off-thunk
@@ -77,7 +78,12 @@ public class SchedulerDocTest extends AbstractJavaTest {
         system
             .scheduler()
             .scheduleWithFixedDelay(
-                Duration.ZERO, Duration.ofMillis(50), tickActor, "Tick", system.dispatcher(), null);
+                Duration.ZERO,
+                Duration.ofMillis(50),
+                tickActor,
+                "Tick",
+                system.dispatcher(),
+                ActorRef.noSender());
 
     // This cancels further Ticks to be sent
     cancellable.cancel();

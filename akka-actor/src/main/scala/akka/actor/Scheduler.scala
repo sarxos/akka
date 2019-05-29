@@ -22,8 +22,6 @@ import akka.annotation.InternalApi
  */
 private final case class SchedulerException(msg: String) extends akka.AkkaException(msg) with NoStackTrace
 
-// The Scheduler trait is included in the documentation. KEEP THE LINES SHORT!!!
-//#scheduler
 /**
  * An Akka scheduler service. This one needs one special behavior: if
  * Closeable, it MUST execute all outstanding tasks upon .close() in order
@@ -39,7 +37,7 @@ private final case class SchedulerException(msg: String) extends akka.AkkaExcept
  *  2) a akka.event.LoggingAdapter
  *  3) a java.util.concurrent.ThreadFactory
  *
- * Please note that this scheduler implementation is higly optimised for high-throughput
+ * Please note that this scheduler implementation is highly optimised for high-throughput
  * and high-frequency events. It is not to be confused with long-term schedulers such as
  * Quartz. The scheduler will throw an exception if attempts are made to schedule too far
  * into the future (which by default is around 8 months (`Int.MaxValue` seconds).
@@ -47,16 +45,16 @@ private final case class SchedulerException(msg: String) extends akka.AkkaExcept
 trait Scheduler {
 
   /**
-   * FIXME docs
    * Scala API: Schedules a `Runnable` to be run repeatedly with an initial delay and
-   * a frequency. E.g. if you would like the function to be run after 2
-   * seconds and thereafter every 100ms you would set `delay=Duration(2, TimeUnit.SECONDS)`
-   * and `interval=Duration(100, TimeUnit.MILLISECONDS)`. If
-   * the execution of the runnable takes longer than the interval, the
-   * subsequent execution will start immediately after the prior one completes
-   * (there will be no overlap of executions of the runnable). In such cases,
-   * the actual execution interval will differ from the interval passed to this
-   * method.
+   * a fixed `delay` between subsequent executions. E.g. if you would like the function to
+   * be run after 2 seconds and thereafter every 100ms you would set `delay=Duration(2, TimeUnit.SECONDS)`
+   * and `interval=Duration(100, TimeUnit.MILLISECONDS)`.
+   *
+   * It will not compensate the delay between tasks if the execution takes long time or if
+   * scheduling is delayed longer than specified for some reason. The delay between subsequent
+   * execution will always be (at least) the given `delay`. In the long run, the
+   * frequency of execution will generally be slightly lower than the reciprocal of the specified
+   * `delay`.
    *
    * If the `Runnable` throws an exception the repeated scheduling is aborted,
    * i.e. the function will not be invoked any more.
@@ -83,7 +81,8 @@ trait Scheduler {
                 if (self.get != null)
                   swap(scheduleOnce(delay, this))
               } catch {
-                case _: SchedulerException => // ignore failure to enqueue or terminated target actor
+                case _: IllegalStateException | _: SchedulerException =>
+                // ignore failure to enqueue or terminated target actor
               }
             }
           }))
@@ -111,16 +110,17 @@ trait Scheduler {
   }
 
   /**
-   * FIXME docs
    * Java API: Schedules a `Runnable` to be run repeatedly with an initial delay and
-   * a frequency. E.g. if you would like the function to be run after 2
-   * seconds and thereafter every 100ms you would set delay to `Duration.ofSeconds(2)`,
-   * and interval to `Duration.ofMillis(100)`. If
-   * the execution of the runnable takes longer than the interval, the
-   * subsequent execution will start immediately after the prior one completes
-   * (there will be no overlap of executions of the runnable). In such cases,
-   * the actual execution interval will differ from the interval passed to this
-   * method.
+   * a fixed `delay` between subsequent executions. E.g. if you would like the function to
+   * be run after 2 seconds and thereafter every 100ms you would set delay to `Duration.ofSeconds(2)`,
+   * and interval to `Duration.ofMillis(100)`.
+   *
+   * It will not compensate the delay between tasks if the execution takes long time or if
+   * scheduling is delayed longer than specified for some reason. The delay between subsequent
+   * execution will always be (at least) the given `delay`.
+   *
+   * In the long run, the frequency of tasks will generally be slightly lower than
+   * the reciprocal of the specified `delay`.
    *
    * If the `Runnable` throws an exception the repeated scheduling is aborted,
    * i.e. the function will not be invoked any more.
@@ -140,11 +140,17 @@ trait Scheduler {
   }
 
   /**
-   * FIXME docs
    * Scala API: Schedules a message to be sent repeatedly with an initial delay and
-   * frequency. E.g. if you would like a message to be sent immediately and
-   * thereafter every 500ms you would set `delay=Duration.Zero` and
-   * `interval=Duration(500, TimeUnit.MILLISECONDS)`
+   * a fixed `delay` between messages. E.g. if you would like a message to be sent
+   * immediately and thereafter every 500ms you would set `delay=Duration.Zero` and
+   * `interval=Duration(500, TimeUnit.MILLISECONDS)`.
+   *
+   * It will not compensate the delay between messages if scheduling is delayed
+   * longer than specified for some reason. The delay between sending of subsequent
+   * messages will always be (at least) the given `delay`.
+   *
+   * In the long run, the frequency of messages will generally be slightly lower than
+   * the reciprocal of the specified `delay`.
    *
    * Note: For scheduling within actors `with Timers` should be preferred.
    */
@@ -167,11 +173,17 @@ trait Scheduler {
   }
 
   /**
-   * FIXME docs
    * Java API: Schedules a message to be sent repeatedly with an initial delay and
-   * frequency. E.g. if you would like a message to be sent immediately and
-   * thereafter every 500ms you would set `delay=Duration.ZERO` and
-   * `interval=Duration.ofMillis(500)`
+   * a fixed `delay` between messages. E.g. if you would like a message to be sent
+   * immediately and thereafter every 500ms you would set `delay=Duration.ZERO` and
+   * `interval=Duration.ofMillis(500)`.
+   *
+   * It will not compensate the delay between messages if scheduling is delayed
+   * longer than specified for some reason. The delay between sending of subsequent
+   * messages will always be (at least) the given `delay`.
+   *
+   * In the long run, the frequency of messages will generally be slightly lower than
+   * the reciprocal of the specified `delay`.
    *
    * Note: For scheduling within actors `AbstractActorWithTimers` should be preferred.
    */
@@ -190,12 +202,24 @@ trait Scheduler {
    * Scala API: Schedules a `Runnable` to be run repeatedly with an initial delay and
    * a frequency. E.g. if you would like the function to be run after 2
    * seconds and thereafter every 100ms you would set `delay=Duration(2, TimeUnit.SECONDS)`
-   * and `interval=Duration(100, TimeUnit.MILLISECONDS)`. If
-   * the execution of the runnable takes longer than the interval, the
-   * subsequent execution will start immediately after the prior one completes
-   * (there will be no overlap of executions of the runnable). In such cases,
-   * the actual execution interval will differ from the interval passed to this
-   * method.
+   * and `interval=Duration(100, TimeUnit.MILLISECONDS)`.
+   *
+   * It will compensate the delay for a subsequent task if the previous tasks took
+   * long to execute. In such cases, the actual execution interval will differ from
+   * the interval passed to the method.
+   *
+   * If the execution of the tasks takes longer than the `interval`, the subsequent
+   * execution will start immediately after the prior one completes (there will be
+   * no overlap of executions). This also has the consequence that after long garbage
+   * collection pauses or other reasons when the JVM was suspended all "missed" tasks
+   * will execute when the process wakes up again.
+   *
+   * In the long run, the frequency of execution will be exactly the reciprocal of the
+   * specified `interval`.
+   *
+   * Warning: `scheduleAtFixedRate` can result in bursts of scheduled tasks after long
+   * garbage collection pauses, which may in worst case cause undesired load on the system.
+   * Therefore `scheduleWithFixedDelay` is often preferred.
    *
    * If the `Runnable` throws an exception the repeated scheduling is aborted,
    * i.e. the function will not be invoked any more.
@@ -213,12 +237,24 @@ trait Scheduler {
    * Java API: Schedules a `Runnable` to be run repeatedly with an initial delay and
    * a frequency. E.g. if you would like the function to be run after 2
    * seconds and thereafter every 100ms you would set delay to `Duration.ofSeconds(2)`,
-   * and interval to `Duration.ofMillis(100)`. If
-   * the execution of the runnable takes longer than the interval, the
-   * subsequent execution will start immediately after the prior one completes
-   * (there will be no overlap of executions of the runnable). In such cases,
-   * the actual execution interval will differ from the interval passed to this
-   * method.
+   * and interval to `Duration.ofMillis(100)`.
+   *
+   * It will compensate the delay for a subsequent task if the previous tasks took
+   * long to execute. In such cases, the actual execution interval will differ from
+   * the interval passed to the method.
+   *
+   * If the execution of the tasks takes longer than the `interval`, the subsequent
+   * execution will start immediately after the prior one completes (there will be
+   * no overlap of executions). This also has the consequence that after long garbage
+   * collection pauses or other reasons when the JVM was suspended all "missed" tasks
+   * will execute when the process wakes up again.
+   *
+   * In the long run, the frequency of execution will be exactly the reciprocal of the
+   * specified `interval`.
+   *
+   * Warning: `scheduleAtFixedRate` can result in bursts of scheduled tasks after long
+   * garbage collection pauses, which may in worst case cause undesired load on the system.
+   * Therefore `scheduleWithFixedDelay` is often preferred.
    *
    * If the `Runnable` throws an exception the repeated scheduling is aborted,
    * i.e. the function will not be invoked any more.
@@ -243,6 +279,22 @@ trait Scheduler {
    * thereafter every 500ms you would set `delay=Duration.Zero` and
    * `interval=Duration(500, TimeUnit.MILLISECONDS)`
    *
+   * It will compensate the delay for a subsequent message if the sending of previous
+   * message was delayed more than specified. In such cases, the actual message interval
+   * will differ from the interval passed to the method.
+   *
+   * If the execution is delayed longer than the `interval`, the subsequent message will
+   * be sent immediately after the prior one. This also has the consequence that after
+   * long garbage collection pauses or other reasons when the JVM was suspended all
+   * "missed" messages will be sent when the process wakes up again.
+   *
+   * In the long run, the frequency of messages will be exactly the reciprocal of the
+   * specified `interval`.
+   *
+   * Warning: `scheduleAtFixedRate` can result in bursts of scheduled messages after long
+   * garbage collection pauses, which may in worst case cause undesired load on the system.
+   * Therefore `scheduleWithFixedDelay` is often preferred.
+   *
    * Note: For scheduling within actors `with Timers` should be preferred.
    */
   @silent
@@ -262,6 +314,22 @@ trait Scheduler {
    * thereafter every 500ms you would set `delay=Duration.ZERO` and
    * `interval=Duration.ofMillis(500)`
    *
+   * It will compensate the delay for a subsequent message if the sending of previous
+   * message was delayed more than specified. In such cases, the actual message interval
+   * will differ from the interval passed to the method.
+   *
+   * If the execution is delayed longer than the `interval`, the subsequent message will
+   * be sent immediately after the prior one. This also has the consequence that after
+   * long garbage collection pauses or other reasons when the JVM was suspended all
+   * "missed" messages will be sent when the process wakes up again.
+   *
+   * In the long run, the frequency of messages will be exactly the reciprocal of the
+   * specified `interval`.
+   *
+   * Warning: `scheduleAtFixedRate` can result in bursts of scheduled messages after long
+   * garbage collection pauses, which may in worst case cause undesired load on the system.
+   * Therefore `scheduleWithFixedDelay` is often preferred.
+   *
    * Note: For scheduling within actors `AbstractActorWithTimers` should be preferred.
    */
   final def scheduleAtFixedRate(
@@ -276,12 +344,7 @@ trait Scheduler {
   }
 
   /**
-   * Scala API: Schedules a message to be sent repeatedly with an initial delay and
-   * frequency. E.g. if you would like a message to be sent immediately and
-   * thereafter every 500ms you would set `delay=Duration.Zero` and
-   * `interval=Duration(500, TimeUnit.MILLISECONDS)`
-   *
-   * Note: For scheduling within actors `with Timers` should be preferred.
+   * Deprecated API: See [[Scheduler#scheduleWithFixedDelay]] or [[Scheduler#scheduleAtFixedRate]].
    */
   // FIXME deprecate
   @silent
@@ -301,12 +364,7 @@ trait Scheduler {
       })
 
   /**
-   * Java API: Schedules a message to be sent repeatedly with an initial delay and
-   * frequency. E.g. if you would like a message to be sent immediately and
-   * thereafter every 500ms you would set `delay=Duration.ZERO` and
-   * `interval=Duration.ofMillis(500)`
-   *
-   * Note: For scheduling within actors `AbstractActorWithTimers` should be preferred.
+   * Deprecated API: See [[Scheduler#scheduleWithFixedDelay]] or [[Scheduler#scheduleAtFixedRate]].
    */
   // FIXME deprecate
   final def schedule(
@@ -321,19 +379,7 @@ trait Scheduler {
   }
 
   /**
-   * Scala API: Schedules a function to be run repeatedly with an initial delay and a
-   * frequency. E.g. if you would like the function to be run after 2 seconds
-   * and thereafter every 100ms you would set `delay=Duration(2, TimeUnit.SECONDS)`
-   * and `interval=Duration(100, TimeUnit.MILLISECONDS)`. If the execution of
-   * the function takes longer than the interval, the subsequent execution will
-   * start immediately after the prior one completes (there will be no overlap
-   * of the function executions). In such cases, the actual execution interval
-   * will differ from the interval passed to this method.
-   *
-   * If the function throws an exception the repeated scheduling is aborted,
-   * i.e. the function will not be invoked any more.
-   *
-   * Note: For scheduling within actors `with Timers` should be preferred.
+   * Deprecated API: See [[Scheduler#scheduleWithFixedDelay]] or [[Scheduler#scheduleAtFixedRate]].
    */
   // FIXME deprecate
   final def schedule(initialDelay: FiniteDuration, interval: FiniteDuration)(f: => Unit)(
@@ -342,48 +388,14 @@ trait Scheduler {
     schedule(initialDelay, interval, new Runnable { override def run(): Unit = f })
 
   /**
-   * Scala API: Schedules a `Runnable` to be run repeatedly with an initial delay and
-   * a frequency. E.g. if you would like the function to be run after 2
-   * seconds and thereafter every 100ms you would set `delay=Duration(2, TimeUnit.SECONDS)`
-   * and `interval=Duration(100, TimeUnit.MILLISECONDS)`.
-   *
-   * If the execution of the runnable takes longer than the interval, the
-   * subsequent execution will start immediately after the prior one completes
-   * (there will be no overlap of executions of the runnable). In such cases,
-   * the actual execution interval will differ from the interval passed to this
-   * method.
-   *
-   * If the `Runnable` throws an exception the repeated scheduling is aborted,
-   * i.e. the function will not be invoked any more.
-   *
-   * @throws IllegalArgumentException if the given delays exceed the maximum
-   * reach (calculated as: `delay / tickNanos > Int.MaxValue`).
-   *
-   * Note: For scheduling within actors `with Timers` should be preferred.
+   * Deprecated API: See [[Scheduler#scheduleWithFixedDelay]] or [[Scheduler#scheduleAtFixedRate]].
    */
   // FIXME deprecate
   def schedule(initialDelay: FiniteDuration, interval: FiniteDuration, runnable: Runnable)(
       implicit executor: ExecutionContext): Cancellable
 
   /**
-   * Java API: Schedules a `Runnable` to be run repeatedly with an initial delay and
-   * a frequency. E.g. if you would like the function to be run after 2
-   * seconds and thereafter every 100ms you would set `delay=Duration.ofSeconds(2)`
-   * and `interval=Duration.ofMillis(100)`.
-   *
-   * If the execution of the runnable takes longer than the interval, the
-   * subsequent execution will start immediately after the prior one completes
-   * (there will be no overlap of executions of the runnable). In such cases,
-   * the actual execution interval will differ from the interval passed to this
-   * method.
-   *
-   * If the `Runnable` throws an exception the repeated scheduling is aborted,
-   * i.e. the function will not be invoked any more.
-   *
-   * @throws IllegalArgumentException if the given delays exceed the maximum
-   * reach (calculated as: `delay / tickNanos > Int.MaxValue`).
-   *
-   * Note: For scheduling within actors `AbstractActorWithTimers` should be preferred.
+   * Deprecated API: See [[Scheduler#scheduleWithFixedDelay]] or [[Scheduler#scheduleAtFixedRate]].
    */
   // FIXME deprecate
   def schedule(initialDelay: java.time.Duration, interval: java.time.Duration, runnable: Runnable)(
@@ -474,12 +486,10 @@ trait Scheduler {
   def maxFrequency: Double
 
 }
-//#scheduler
 
 // this one is just here so we can present a nice AbstractScheduler for Java
 abstract class AbstractSchedulerBase extends Scheduler
 
-//#cancellable
 /**
  * Signifies something that can be cancelled
  * There is no strict guarantee that the implementation is thread-safe,
@@ -503,7 +513,6 @@ trait Cancellable {
    */
   def isCancelled: Boolean
 }
-//#cancellable
 
 object Cancellable {
   val alreadyCancelled: Cancellable = new Cancellable {
